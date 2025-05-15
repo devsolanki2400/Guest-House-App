@@ -1,0 +1,7 @@
+package com.model.guesthousebooking.exception;
+
+public class InvalidBookingRequestException extends RuntimeException {
+    public InvalidBookingRequestException(String message) {
+        super(message);
+    }
+}

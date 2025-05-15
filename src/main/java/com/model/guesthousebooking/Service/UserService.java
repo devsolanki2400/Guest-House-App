@@ -1,21 +1,76 @@
-package com.model.guesthousebooking.Service;
+package com.model.guesthousebooking.service;
 
-import com.model.guesthousebooking.Model.User;
-import com.model.guesthousebooking.Model.UserDto;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
+import com.model.guesthousebooking.exception.UserAlreadyExistsException;
+import com.model.guesthousebooking.model.Role;
+import com.model.guesthousebooking.model.User;
+import com.model.guesthousebooking.repository.RoleRepository;
+import com.model.guesthousebooking.repository.UserRepository;
+
+import java.util.Collections;
 import java.util.List;
 
-public interface UserService {
 
-    // Saves a user
-    User save(UserDto user);
+@Service
+@RequiredArgsConstructor
+public class UserService implements IUserService {
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
 
-    // Retrieves all users
-    List<User> findAll();
+    @Override
+    public User registerUser(User user) {
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new UserAlreadyExistsException(user.getEmail() + " already exists");
+        }
 
-    // Retrieves a user by username
-    User findOne(String username);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        System.out.println(user.getPassword());
 
-    User createEmployee(UserDto user);
+        // ✅ SAFELY fetch ROLE_USER
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new RuntimeException("ROLE_USER not found in DB"));
 
+        user.setRoles(Collections.singletonList(userRole));
+        return userRepository.save(user);
+    }
+
+
+//    @Override
+//    public User registerUser(User user) {
+//        if (userRepository.existsByEmail(user.getEmail())){
+//            throw new UserAlreadyExistsException(user.getEmail() + " already exists");
+//        }
+//        user.setPassword(passwordEncoder.encode(user.getPassword()));
+//        System.out.println(user.getPassword());
+//        Role userRole = roleRepository.findByName("ROLE_USER").get();
+//        user.setRoles(Collections.singletonList(userRole));
+//        return userRepository.save(user);
+//    }
+
+    @Override
+    public List<User> getUsers() {
+        return userRepository.findAll();
+    }
+
+    @Transactional
+    @Override
+    public void deleteUser(String email) {
+        User theUser = getUser(email);
+        if (theUser != null){
+            userRepository.deleteByEmail(email);
+        }
+
+    }
+
+    @Override
+    public User getUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    }
 }

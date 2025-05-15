@@ -1,48 +1,51 @@
-package com.model.guesthousebooking.Model;
+package com.model.guesthousebooking.model;
 
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+        import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 
 @Entity
+@Getter
+@Setter
+@NoArgsConstructor
 public class Role {
-
     @Id
-    @GeneratedValue(strategy= GenerationType.IDENTITY)
-    private long id;
-
-    @Column
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
     private String name;
 
-    @Column
-    private String description;
+    @JsonIgnore
+    @ManyToMany(mappedBy = "roles")
+    private Collection<User> users = new HashSet<>();
 
-    // Getter for id
-    public long getId() {
-        return id;
-    }
-
-    // Setter for id
-    public void setId(long id) {
-        this.id = id;
-    }
-
-    // Getter for name
-    public String getName() {
-        return name;
-    }
-
-    // Setter for name
-    public void setName(String name) {
+    public Role(String name) {
         this.name = name;
     }
 
-    // Getter for description
-    public String getDescription() {
-        return description;
+    public void assignRoleToUser(User user){
+        user.getRoles().add(this);
+        this.getUsers().add(user);
     }
 
-    // Setter for description
-    public void setDescription(String description) {
-        this.description = description;
+    public void removeUserFromRole(User user){
+        user.getRoles().remove(this);
+        this.getUsers().remove(user);
+
+    }
+
+    public void removeAllUsersFromRole(){
+        if (this.getUsers() != null){
+            List<User> roleUsers = this.getUsers().stream().toList();
+            roleUsers.forEach(this :: removeUserFromRole);
+        }
+    }
+    public  String getName(){
+        return name != null? name : "";
     }
 }

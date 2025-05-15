@@ -1,105 +1,57 @@
-package com.model.guesthousebooking.Controller;
+package com.model.guesthousebooking.controller;
 
-import com.model.guesthousebooking.Config.TokenProvider;
-import com.model.guesthousebooking.Model.AuthToken;
-import com.model.guesthousebooking.Model.LoginUser;
-import com.model.guesthousebooking.Model.User;
-import com.model.guesthousebooking.Model.UserDto;
-import com.model.guesthousebooking.Service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
+
+import com.model.guesthousebooking.model.User;
+import com.model.guesthousebooking.service.IUserService;
 
 import java.util.List;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
+    private final IUserService userService;
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<List<User>> getUsers() {
 
-    @Autowired
-    private TokenProvider jwtTokenUtil;
-
-    @Autowired
-    private UserService userService;
-
-    /**
-     * Generates a token for the given user credentials.
-     *
-     * @param loginUser The user's login credentials.
-     * @return A response entity containing the generated token.
-     * @throws AuthenticationException if authentication fails.
-     */
-    @RequestMapping(value = "/authenticate", method = RequestMethod.POST)
-    public ResponseEntity<?> generateToken(@RequestBody LoginUser loginUser) throws AuthenticationException {
-        final Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginUser.getUsername(),
-                        loginUser.getPassword()
-                )
-        );
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        final String token = jwtTokenUtil.generateToken(authentication);
-        return ResponseEntity.ok(new AuthToken(token));
+        return new ResponseEntity<>(userService.getUsers(), HttpStatus.FOUND);
     }
 
-    /**
-     * Saves a new user.
-     *
-     * @param user The user to be saved.
-     * @return The saved user.
-     */
-    @RequestMapping(value="/register", method = RequestMethod.POST)
-    public User saveUser(@RequestBody UserDto user){
-        return userService.save(user);
+    @GetMapping("/{email}")
+    @PreAuthorize("hasRole('ROLE_USER') or hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> getUserByEmail(@PathVariable("email") String email) {
+        try {
+            User theUser = userService.getUser(email);
+            return ResponseEntity.ok(theUser);
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error fetching user");
+        }
     }
 
-    /**
-     * Returns a message that can only be accessed by users with the 'ADMIN' role.
-     *
-     * @return A message that can only be accessed by admins.
-     */
-    @PreAuthorize("hasRole('ADMIN')")
-    @RequestMapping(value="/adminping", method = RequestMethod.GET)
-    public String adminPing(){
-        return "Only Admins Can Read This";
-    }
-
-    /**
-     * Returns a message that can be accessed by any user.
-     *
-     * @return A message that can be accessed by any user.
-     */
-    @PreAuthorize("hasRole('USER')")
-    @RequestMapping(value="/userping", method = RequestMethod.GET)
-    public String userPing(){
-        return "Any User Can Read This";
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @RequestMapping(value="/create/employee", method = RequestMethod.POST)
-    public User createEmployee(@RequestBody UserDto user){
-        return userService.createEmployee(user);
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @RequestMapping(value="/find/all", method = RequestMethod.GET)
-    public List<User> getAllList(){
-        return userService.findAll();
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @RequestMapping(value="/find/by/username", method = RequestMethod.GET)
-    public User getAllList(@RequestParam String username){
-        return userService.findOne(username);
+    @DeleteMapping("/delete/{userId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or (hasRole('ROLE_USER') and #email == principal.username)")
+    public ResponseEntity<String> deleteUser(@PathVariable("userId") String email) {
+        try {
+            userService.deleteUser(email);
+            return ResponseEntity.ok("User deleted successfully");
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error deleting user: " + e.getMessage());
+        }
     }
 }
